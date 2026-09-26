@@ -415,7 +415,7 @@ export class Game {
     if(mapped==="pause"){e.preventDefault();if(this.manualToken&&this.sim){this.sim.setManualCommand(this.manualToken,{throttle:0});this.manualKeys.clear();}else this.setSpeed(this.speed===0?1:0);return;}
     if(mapped==="speed"){if(this.manualToken)this.executeManualRoleAction();else this.setSpeed(this.speed===2?1:2);return;}
     if(mapped==="camera"){const modes:CameraMode[]=["cinematic","follow","tactical"];this.setCameraMode(modes[(modes.indexOf(this.camMode)+1)%modes.length]);return;}
-    if(mapped==="labels"){this.hud.toggleLabelMode();return;}if(mapped==="orders"){this.hud.toggleAIOrders();return;}if(mapped==="sonar"&&this.selectedId){this.sim?.ping(this.selectedId);return;}if(mapped==="manual"){if(this.selectedId||this.manualToken)this.manualToken?this.returnToNereus():this.takeManualControl();return;}if(mapped==="countermeasure"&&this.manualToken){this.sim?.deployCountermeasure(this.manualToken.unitId);return;}if(mapped==="roleAction"&&this.manualToken){this.executeManualRoleAction();return;}
+    if(mapped==="labels"){this.hud.toggleLabelMode();return;}if(mapped==="orders"){this.hud.toggleAIOrders();return;}if(mapped==="sonar"&&this.selectedId){this.sim?.ping(this.selectedId);return;}if(mapped==="manual"){this.manualToken?this.returnToNereus():this.takeManualControl();return;}if(mapped==="countermeasure"&&this.manualToken){this.sim?.deployCountermeasure(this.manualToken.unitId);return;}if(mapped==="roleAction"&&this.manualToken){this.executeManualRoleAction();return;}
     if (e.key >= "1" && e.key <= "5") {
       const u = this.sim?.units.find((x) => x.role === roles[Number(e.key) - 1]);
       if (u) {
@@ -455,7 +455,7 @@ export class Game {
         if (this.selectedId) this.sim?.jam(this.selectedId);
         break;
       case "m":
-        if(this.selectedId||this.manualToken){this.manualToken?this.returnToNereus():this.takeManualControl();}else this.toggleMute();
+        this.manualToken?this.returnToNereus():this.takeManualControl();
         break;
       case "o":
         this.hud.toggleAIOrders();
@@ -522,7 +522,7 @@ export class Game {
     if (s !== 0) this.pausedByMenu = false;
   }
 
-  private takeManualControl(){if(!this.sim||!this.selectedId)return;const consequence=this.sim.unit(this.selectedId);const token=this.sim.acquireManualControl(this.selectedId);if(!token)return;this.manualToken=token;this.clearManualInput();this.setCameraMode("follow");this.hud.setManualMode(true,consequence?.callsign??"");}
+  private takeManualControl(){if(!this.sim)return;if(!this.selectedId){const carrier=this.sim.carrier()??this.sim.units.find(u=>u.state==="active")??this.sim.units[0];this.selectedId=carrier.id;}const consequence=this.sim.unit(this.selectedId);const token=this.sim.acquireManualControl(this.selectedId);if(!token){if(consequence?.state!=="active")this.sim.emit("warning",`${consequence?.callsign??"Selected submarine"} cannot take manual control in its current state.`,consequence?{...consequence.pos}:null,consequence?.id??null);return;}this.manualToken=token;this.clearManualInput();this.setCameraMode("follow");this.hud.setManualMode(true,consequence?.callsign??"");}
   private returnToNereus(){if(!this.sim||!this.manualToken)return;this.sim.releaseManualControl(this.manualToken);this.manualToken=null;this.clearManualInput();this.hud.setManualMode(false,"");}
 
   private applyManualInput(){if(!this.sim||!this.manualToken||this.speed===0)return;const u=this.sim.unit(this.manualToken.unitId);if(!u||u.control.mode!=="manual")return;const held=(action:string)=>this.manualKeys.has(action)||this.gamepadHeld.has(action),dt=SIM.DT;let heading=u.control.command.heading,depth=u.control.command.depth,throttle=u.control.command.throttle;if(held("steerLeft"))heading-=specRole(u.role).turnRate*dt*1.6;if(held("steerRight"))heading+=specRole(u.role).turnRate*dt*1.6;if(held("ascend"))depth=Math.max(18,depth-specRole(u.role).vertRate*dt*4);if(held("descend"))depth=Math.min(310,depth+specRole(u.role).vertRate*dt*4);if(held("throttleUp"))throttle=Math.min(specRole(u.role).maxSpeed,throttle+specRole(u.role).accel*dt);if(held("throttleDown"))throttle=Math.max(0,throttle-specRole(u.role).accel*dt*1.5);this.sim.setManualCommand(this.manualToken,{heading,depth,throttle});}
