@@ -100,7 +100,7 @@ export class Navigator {
    * A* path from → to. `danger` adds traversal cost (0 = neutral).
    * Returns smoothed world waypoints (excluding start), or null.
    */
-  findPath(from: Vec3, to: Vec3, danger?: DangerField, preferredDepth = WORLD.CRUISE_DEPTH, constraints?: RouteConstraints): Vec3[] | null {
+  findPath(from: Vec3, to: Vec3, danger?: DangerField, preferredDepth: number = WORLD.CRUISE_DEPTH, constraints?: RouteConstraints): Vec3[] | null {
     const n = this.n;
     const idx = (x: number, z: number) => z * n + x;
     const start = this.nearestPassable(this.toCell(from.x), this.toCell(from.z), constraints);

@@ -1,4 +1,4 @@
-import { COMBAT, DETECTION, DOCTRINE, SIM } from "../config";
+import { COMBAT, DETECTION, DOCTRINE, SIM, WORLD } from "../config";
 import {
   DecisionEntry,
   Role,
@@ -114,6 +114,16 @@ export class Nereus {
     const link = this.sim.network.links.get(u.id);
     if (!link) return true;
     return ["linked", "degraded", "synchronizing"].includes(link.state) && this.sim.now - link.telemetryAt <= 15;
+  }
+
+  private route(from: Vec3, to: Vec3, danger?: (x: number, z: number) => number): Vec3[] | null {
+    const riskMul = directiveRiskMultiplier(this.sim.directives.risk);
+    const field = danger ? (x: number, z: number) => danger(x, z) * riskMul : undefined;
+    return this.sim.nav.findPath(from, to, field, directiveDepthMeters(this.sim.directives.depth));
+  }
+
+  private emissionsAllowActive(): boolean {
+    return this.sim.directives.emissions !== "passive";
   }
 
   onEvent(e: SimEvent) {
@@ -268,17 +278,20 @@ export class Nereus {
           }
           break;
         case "regroup": {
+          const target = order.targetId ? units.find((u) => u.id === order.targetId && u.state !== "destroyed") : undefined;
           const atlas = units.find((u) => u.role === "ATLAS" && u.state !== "destroyed");
-          const anchor = atlas ? atlas.pos : centroid(mobile);
+          const anchor = target ? target.pos : atlas ? atlas.pos : centroid(mobile);
+          const anchorName = target ? target.callsign : atlas ? "Atlas" : "the fleet";
+          const radius = directiveFormationRadius(sim.directives.formation);
           let i = 0;
           for (const u of mobile) {
             const a = (i / Math.max(1, mobile.length)) * Math.PI * 2;
             push({
               kind: "regroup",
-              pos: vec3(anchor.x + Math.cos(a) * 90, anchor.y, anchor.z + Math.sin(a) * 90),
+              pos: vec3(anchor.x + Math.cos(a) * radius, anchor.y, anchor.z + Math.sin(a) * radius),
               targetId: `regroup-${u.id}`,
               priority: 88,
-              desc: `${u.callsign} regroups on ${atlas ? "Atlas" : "the fleet"}`,
+              desc: `${u.callsign} regroups on ${anchorName}`,
               exclusive: false,
               onlyUnit: u.id
             });
@@ -444,7 +457,7 @@ export class Nereus {
           targetId: carrier.id,
           priority: 78,
           exclusive: false,
-          maxAssignees: 2,
+          maxAssignees: sim.directives.cohesion === "together" ? 4 : 2,
           speedOrder: 1,
           desc: `escorting ${carrier.callsign}`
         });
@@ -462,7 +475,7 @@ export class Nereus {
             kind: "exfil",
             pos: sim.mission.extractionPos,
             targetId: `exfil-${u.id}`,
-            priority: 58,
+            priority: sim.directives.cohesion === "independent" ? 74 : 58,
             speedOrder: speedBase,
             desc: `${u.callsign} proceeds to extraction`,
             exclusive: false,
@@ -491,8 +504,10 @@ export class Nereus {
     const menderCanRepair = !!mender && mender.state === "active" && mender.repairKits > 0;
     if (menderCanRepair && order?.kind !== "hold") {
       const repairPriority = order?.kind === "repairs" ? 96 : 0;
-      for (const u of units) {
-        if (u.id === mender!.id || u.state === "destroyed") continue;
+      // a named repair target outranks the automatic triage
+      const namedTarget = order?.kind === "repairs" && order.targetId ? units.find((u) => u.id === order.targetId && u.state !== "destroyed") : undefined;
+      const candidates = namedTarget ? [namedTarget] : units.filter((u) => u.id !== mender!.id && u.state !== "destroyed");
+      for (const u of candidates) {
         const full = spec(u.role).hull;
         if (u.state === "disabled") {
           push({
@@ -503,7 +518,7 @@ export class Nereus {
             speedOrder: 1,
             desc: `repairing ${u.callsign}`
           });
-        } else if (u.hull < full * 0.55) {
+        } else if (u.hull < full * 0.55 || namedTarget) {
           push({
             kind: "repair",
             pos: { ...u.pos },
@@ -665,7 +680,7 @@ export class Nereus {
         distXZ(u.task.pos, nextGoal) < 150
       ) {
         u.task.pos = { ...nextGoal };
-        const p = sim.nav.findPath(u.pos, nextGoal, (x, z) => sim.dangerAt(x, z));
+        const p = this.route(u.pos, nextGoal, (x, z) => sim.dangerAt(x, z));
         if (p) {
           u.task.path = p;
           u.task.pathIndex = 0;
@@ -688,11 +703,11 @@ export class Nereus {
       const goal = taskGoal(next.task, sim);
       let path: Vec3[] = [];
       if (goal && next.task.kind !== "hold") {
-        const p = sim.nav.findPath(u.pos, goal, (x, z) => sim.dangerAt(x, z));
+        const p = this.route(u.pos, goal, (x, z) => sim.dangerAt(x, z));
         path = p ?? [];
       } else if (next.task.kind === "hold" && next.task.pos) {
         if (distXZ(u.pos, next.task.pos) > 30) {
-          const p = sim.nav.findPath(u.pos, next.task.pos, (x, z) => sim.dangerAt(x, z));
+          const p = this.route(u.pos, next.task.pos, (x, z) => sim.dangerAt(x, z));
           path = p ?? [];
         }
       }
@@ -906,7 +921,7 @@ export class Nereus {
         if(distXZ(u.pos,stand)<35) sim.neutralizeMine(blockingMine.id);
       }
       else if(!selected){
-        if(u.id===echo.id){desc="scanning minefield sectors";kind="transit";path=[{...course.stagingSlots[0]}];st="scanning";if(state.posture!=="passive"&&sim.now>=u.sonarActiveUntil)sim.ping(u.id);}
+        if(u.id===echo.id){desc="scanning minefield sectors";kind="transit";path=[{...course.stagingSlots[0]}];st="scanning";if(state.posture!=="passive"&&this.emissionsAllowActive()&&sim.now>=u.sonarActiveUntil)sim.ping(u.id);}
         else if(u.id===ghost.id){const target=known.find(c=>!["mine","decoy","disabled"].includes(c.classification));desc=target?`investigating ${target.id}`:"quiet reconnaissance";kind="transit";path=[target?{...target.estimate}:{...course.stagingSlots[1]}];st="investigating";}
         else desc=u.id===lancer.id?"guarding reconnaissance":"waiting for corridor certification";
       } else {
@@ -1077,14 +1092,14 @@ export class Nereus {
           u.targetSpeed = 0;
           const lastPing = this.lastFire.get(`ping-${u.id}`) ?? -99;
           if (now - lastPing > DETECTION.PING_COOLDOWN) {
-            if (sim.ping(u.id)) this.lastFire.set(`ping-${u.id}`, now);
+            if (this.emissionsAllowActive() && sim.ping(u.id)) this.lastFire.set(`ping-${u.id}`, now);
           }
         }
       } else if (t.kind === "jam") {
         if (d < DETECTION.JAM_RADIUS * 0.85) {
           const lastJam = this.lastFire.get(`jam-${u.id}`) ?? -99;
           if (now - lastJam > DETECTION.JAM_COOLDOWN - 2) {
-            if (sim.jam(u.id)) this.lastFire.set(`jam-${u.id}`, now);
+            if (this.emissionsAllowActive() && sim.jam(u.id)) this.lastFire.set(`jam-${u.id}`, now);
           }
         }
       }
@@ -1154,6 +1169,18 @@ function requiredHalfWidth(u: Unit, margin: number): number {
   const turningAllowance = Math.min(4, s.length / 24);
   const stoppingAllowance = (s.cruiseSpeed * s.cruiseSpeed) / Math.max(1, 2 * s.accel * 12);
   return s.radius + margin + turningAllowance + stoppingAllowance;
+}
+
+function directiveRiskMultiplier(risk: string): number {
+  return risk === "conservative" ? 1.6 : risk === "mission" ? 0.45 : 1;
+}
+
+function directiveDepthMeters(depth: string): number {
+  return depth === "shallow" ? 42 : depth === "deep" ? WORLD.MAX_DEPTH - 24 : depth === "terrain" ? WORLD.MAX_DEPTH : WORLD.CRUISE_DEPTH;
+}
+
+function directiveFormationRadius(formation: string): number {
+  return formation === "search" ? 260 : formation === "escort" ? 52 : formation === "ring" ? 110 : formation === "line" ? 150 : 90;
 }
 
 function pathLength(points: Vec3[]): number {
