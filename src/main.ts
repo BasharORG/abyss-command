@@ -1,4 +1,7 @@
 import { Game } from "./game";
+import { installTouchTaps } from "./input/touchTap";
+
+installTouchTaps();
 
 async function boot() {
   const canvas = document.getElementById("scene") as HTMLCanvasElement;

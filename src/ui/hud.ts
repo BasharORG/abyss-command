@@ -414,6 +414,7 @@ export class Hud {
 
     // --- permanent left control center ---
     const controlCenter = el("aside", "control-center");
+    if (window.matchMedia("(max-width: 1000px)").matches) controlCenter.classList.add("collapsed");
     const ccHeader = el("div", "cc-header", `<div><span class="cc-kicker">CENTRAL COMMAND AI</span><h2>NEREUS CONTROL CENTER</h2></div>`);
     const modeBar=el("div","control-mode-bar");
     const autonomy=btn("Autonomy","NEREUS controls all five submarines",()=>this.cb.onManualMode(false),"active");
