@@ -1015,7 +1015,7 @@ button.executing {
   font-family: ui-monospace, Menlo, monospace;
   white-space: nowrap;
 }
-.tutorial-card { position:absolute; left:50%; bottom:88px; transform:translateX(-50%); z-index:18; width:min(440px,calc(100vw - 32px)); padding:12px 14px; background:var(--ink-strong); border:1px solid var(--cyan-dim); border-radius:5px; font-size:.72rem; box-shadow:0 14px 42px rgba(0,0,0,.55); pointer-events:auto; }
+.tutorial-card { position:absolute; left:50%; bottom:88px; transform:translateX(-50%); z-index:18; width:min(440px,calc(100vw - 32px)); padding:12px 14px; background:var(--ink-strong); border:1px solid var(--cyan-dim); border-radius:5px; font-size:.72rem; box-shadow:0 14px 42px rgba(0,0,0,.55); pointer-events:auto; touch-action:manipulation; }
 .tutorial-card h3 { margin:2px 0 5px; color:var(--cyan-bright); font-size:.84rem; }
 .tutorial-card p { margin:0; line-height:1.45; }
 .tutorial-context,.tutorial-progress { color:var(--text-dim); font-size:.62rem; text-transform:uppercase; letter-spacing:.08em; }
