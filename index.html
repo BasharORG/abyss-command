@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>ABYSS COMMAND</title>
+    <link rel="stylesheet" href="/src/ui/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+      <div id="hud" class="hidden"></div>
+      <div id="menus"></div>
+      <div id="webgl-error" class="hidden">
+        <div class="error-box">
+          <h1>ABYSS COMMAND</h1>
+          <p>WebGL 2 is not available in this browser or on this device.</p>
+          <p>Please try a recent desktop version of Chrome, Edge, Firefox, or Safari with hardware acceleration enabled.</p>
+          <div class="menu-actions"><button onclick="location.reload()">Reload</button><button onclick="location.href='/'">Main menu</button></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

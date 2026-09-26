@@ -1,0 +1,7 @@
+sessions/*
+node_modules/
+dist/
+.shots/
+.zvec-grep/
+.blackbit/
+reports/
