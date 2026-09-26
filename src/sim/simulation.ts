@@ -739,6 +739,16 @@ export class Simulation {
       u.speed = 0;
       this.emit("unitDestroyed", `${u.callsign} destroyed.`, { ...u.pos }, u.id);
       this.dropCoreFrom(u);
+      if (this.echoRidge && this.echoRidge.packageState === "carried" && this.echoRidge.carrierId === u.id) {
+        this.echoRidge.packageState = "lost";
+        this.echoRidge.carrierId = null;
+        u.hasCore = false;
+        if (!this.outcome) {
+          this.outcome = "lost";
+          this.loseReason = "The sensor package was lost with its carrier.";
+          this.emit("phaseChange", "Sensor package lost — the fleet cannot complete extraction.", { ...u.pos }, u.id);
+        }
+      }
     } else if (u.hull <= COMBAT.DISABLED_HULL && before === "active") {
       u.state = "disabled";
       u.speed = 0;
@@ -1011,7 +1021,7 @@ export class Simulation {
 
   private applyManualSafety(u:Unit){if(u.control.mode!=="manual")return;u.control.correction=null;const floor=this.mission.terrain.seabedY(u.pos.x,u.pos.z)+WORLD.SEABED_MARGIN,ceil=-WORLD.SURFACE_MARGIN;if(u.pos.y<floor+8){u.control.correction="Terrain avoidance: ascending";u.control.command.depth=Math.max(WORLD.SURFACE_MARGIN,-floor-24);u.control.command.throttle=Math.min(u.control.command.throttle,spec(u.role).silentSpeed);}if(u.pos.y>ceil-4){u.control.correction="Surface limit";u.control.command.depth=WORLD.SURFACE_MARGIN+8;}if(u.control.assistance==="standard"){for(const c of this.contacts.values()){if(c.kind!=="mine")continue;const stop=(u.speed*u.speed)/(2*Math.max(1,spec(u.role).accel));if(distXZ(u.pos,c.pos)<c.uncertainty+70+stop){u.control.command.throttle=0;u.control.correction=`Emergency braking near ${c.id}`;break;}}}}
 
-  private stepEchoRidge(dt:number){const state=this.echoRidge!,ridge=this.mission.echoRidge!;let alert:EchoRidgeState["alert"]="normal";
+  private stepEchoRidge(dt:number){const state=this.echoRidge!,ridge=this.mission.echoRidge!;if(this.outcome)return;if(this.aliveUnits().length<3){state.phase="failed";this.outcome="lost";this.loseReason="Fewer than three submarines remain.";return;}if(this.timeRemaining<=0){state.phase="failed";this.outcome="lost";this.loseReason="The operation window closed before the package was extracted.";return;}let alert:EchoRidgeState["alert"]="normal";
     for(const drone of this.hostileDrones){if(drone.state==="destroyed"||drone.state==="disabled")continue;drone.prevPos={...drone.pos};let sensed:Unit|null=null,best=Infinity;for(const u of this.units){if(u.state==="destroyed")continue;const d=dist3(u.pos,drone.pos),noisy=u.noise>18||this.now<u.sonarActiveUntil;if(d<drone.sensorRange*(noisy?1.25:.65)&&!this.mission.terrain.losBlocked(drone.pos,u.pos)&&d<best){best=d;sensed=u;}}
       if(sensed){drone.suspicion=Math.min(1,drone.suspicion+dt*.18);drone.targetId=sensed.id;drone.lastKnownTargetPos={...sensed.pos};if(drone.suspicion>.35)drone.state="track";if(drone.suspicion>.75&&best<340)drone.state="attack";}else{drone.suspicion=Math.max(0,drone.suspicion-dt*.04);if(drone.lastKnownTargetPos)drone.state="search";}
       const goal=drone.lastKnownTargetPos??ridge.station,delta=Math.atan2(goal.x-drone.pos.x,goal.z-drone.pos.z)-drone.heading;drone.heading+=Math.max(-.55*dt,Math.min(.55*dt,Math.atan2(Math.sin(delta),Math.cos(delta))));const wanted=drone.state==="attack"?drone.maxSpeed:drone.state==="track"?drone.maxSpeed*.85:drone.maxSpeed*.45;drone.speed+=(wanted-drone.speed)*Math.min(1,dt*1.2);drone.pos.x+=Math.sin(drone.heading)*drone.speed*dt;drone.pos.z+=Math.cos(drone.heading)*drone.speed*dt;
@@ -1020,7 +1030,7 @@ export class Simulation {
     }
     if(alert!==state.alert){state.alert=alert;state.revision++;this.emit("phaseChange",`Defensive alert changed to ${alert.toUpperCase()}.`);}
     if(state.packageState==="station"){const carrier=this.units.find(u=>u.role==="MENDER"&&u.state==="active"&&u.logistics.objectiveCapacity>0)??this.units.find(u=>u.state==="active"&&u.logistics.objectiveCapacity>0);if(carrier&&distXZ(carrier.pos,ridge.packagePos)<55){state.packageState="carried";state.carrierId=carrier.id;carrier.hasCore=true;this.emit("coreRecovered",`${carrier.callsign} recovered the Echo Ridge sensor package.`,{...carrier.pos},carrier.id);}}
-    const carrier=state.carrierId?this.unit(state.carrierId):null;if(carrier&&distXZ(carrier.pos,ridge.extraction)<140){state.packageState="delivered";const inside=this.aliveUnits().filter(u=>distXZ(u.pos,ridge.extraction)<160);if(inside.length>=3&&!this.projectiles.some(p=>!p.done&&p.fromNodeId.startsWith("H-"))){state.phase="complete";this.outcome="won";this.emit("phaseChange","Echo Ridge secured — package and surviving fleet extracted.");}}
+    const carrier=state.carrierId?this.unit(state.carrierId):null;if(carrier&&carrier.state!=="destroyed"&&distXZ(carrier.pos,ridge.extraction)<140){state.packageState="delivered";const inside=this.aliveUnits().filter(u=>distXZ(u.pos,ridge.extraction)<160);if(inside.length>=3&&!this.projectiles.some(p=>!p.done&&p.fromNodeId.startsWith("H-"))){state.phase="complete";this.outcome="won";this.emit("phaseChange","Echo Ridge secured — package and surviving fleet extracted.");}}
   }
 
   /** current objective text for HUD */
