@@ -78,4 +78,12 @@ describe("Canyon Passage", () => {
     expect(sim.canyonTrial!.status).toBe("complete");
     expect(sim.canyonTrial!.completedUnitIds.size).toBe(5);
   });
+
+  it("fails when fewer than three submarines survive", () => {
+    const { sim, nereus } = makeTrial();
+    for (const u of sim.units.slice(0, 3)) sim.damageUnit(u, 10000, "test");
+    run(sim, nereus, 1);
+    expect(sim.outcome).toBe("lost");
+    expect(sim.canyonTrial!.status).toBe("failed");
+  });
 });

@@ -948,6 +948,12 @@ export class Simulation {
     const trial = this.canyonTrial;
     const spec = this.mission.canyonTrial;
     if (!trial || !spec || trial.status !== "running") return;
+    if (this.aliveUnits().length < 3) {
+      trial.status = "failed";
+      this.outcome = "lost";
+      this.loseReason = "Fewer than three submarines remain to complete the passage.";
+      return;
+    }
     for (const u of this.units) {
       if (u.state === "destroyed" || trial.completedUnitIds.has(u.id)) continue;
       if (distXZ(u.pos, spec.regroupPoint) < 95) {
@@ -1002,6 +1008,7 @@ export class Simulation {
 
   private stepMinefieldProgress(){
     const state=this.minefield!, course=this.mission.silentMinefield!;
+    if(this.aliveUnits().length<3){state.status="failed";this.outcome="lost";this.loseReason="Fewer than three submarines remain to complete the crossing.";return;}
     for(const u of this.units){
       if(u.state!=="destroyed"&&distXZ(u.pos,course.regroupPoint)<105) state.completedUnitIds.add(u.id);
       for(const c of state.contacts.values()){

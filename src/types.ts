@@ -291,7 +291,7 @@ export interface TrialDecision {
 }
 
 export interface CanyonTrialState {
-  status: "running" | "complete";
+  status: "running" | "complete" | "failed";
   priority: TrialPriority;
   coordination: TrialCoordination;
   clearanceMargin: number;
@@ -348,7 +348,7 @@ export interface MinefieldCorridorAssessment {
 }
 
 export interface MinefieldState {
-  status: "scan" | "ready" | "crossing" | "retreating" | "complete";
+  status: "scan" | "ready" | "crossing" | "retreating" | "complete" | "failed";
   posture: DetectionPosture;
   policy: ThreatPolicy;
   formation: CrossingFormation;
