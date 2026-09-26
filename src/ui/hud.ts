@@ -177,7 +177,7 @@ export class Hud {
       b.className = cls;
       b.textContent = label;
       b.title = title;
-      b.addEventListener("click", onClick);
+      this.bindTap(b, onClick);
       return b;
     };
 
@@ -231,7 +231,7 @@ export class Hud {
            <span class="bar-label">BAT</span><div class="bar batt"><i></i></div>
          </div>`
       );
-      card.addEventListener("click", () => {this.cb.onSelectUnit(u.id);this.tutorialEvent("unit-selected");});
+      this.bindTap(card, () => {this.cb.onSelectUnit(u.id);this.tutorialEvent("unit-selected");});
       roster.appendChild(card);
       unitCards.set(u.id, card);
     });
@@ -555,6 +555,12 @@ export class Hud {
   tutorialEvent(event:TutorialEvent){if(this.tutorial.record(event))this.forceUpdate=true;}
   private clearTutorial(){this.tutorialTarget?.classList.remove("tutorial-target");this.tutorialTarget=null;if(this.els?.tutorial)this.els.tutorial.classList.add("hidden");}
   private updateTutorial(context:TutorialContext){const step=this.tutorial.current(context);if(!step){this.clearTutorial();return;}const target=this.root.querySelector(step.target) as HTMLElement|null;if(target!==this.tutorialTarget){this.tutorialTarget?.classList.remove("tutorial-target");this.tutorialTarget=target;target?.classList.add("tutorial-target");}this.els.tutorial.classList.remove("hidden");(this.els.tutorial.querySelector(".tutorial-title")as HTMLElement).textContent=step.title;(this.els.tutorial.querySelector(".tutorial-step")as HTMLElement).textContent=step.instruction;const progress=this.tutorial.progress;(this.els.tutorial.querySelector(".tutorial-progress")as HTMLElement).textContent=`${progress.done} of ${progress.total} discovered`;}
+
+  private bindTap(el: HTMLElement, fn: () => void) {
+    let fired = false;
+    el.addEventListener("pointerup", () => { fired = true; fn(); });
+    el.addEventListener("click", () => { if (fired) { fired = false; return; } fn(); });
+  }
 
   syncViewportInset() {
     if (!this.els?.controlCenter) return;
