@@ -266,7 +266,8 @@ export class Game {
 
   private startSimulation(doctrine: Doctrine, trial: boolean, minefield=false, defense=false,divide=false,crown=false) {
     this.manualToken=null;
-    this.manualKeys.clear();
+    this.clearManualInput();
+    this.commandController=new CommandController();
     this.teardownMission();
     const seed = hashSeed(this.menus.seed);
     this.sim = new Simulation(seed, this.menus.difficulty, crown?generateAbyssalCrownScenario(seed,this.menus.difficulty):divide?generateSilentDivideScenario(seed):defense?generateEchoRidgeScenario(seed):minefield?generateSilentMinefieldTrial(seed):trial ? generateCanyonPassageTrial(seed) : undefined);
@@ -294,8 +295,11 @@ export class Game {
     this.pausedByMenu = false;
     this.accumulator = 0;
     this.elapsed = 0;
+    this.frameCount = 0;
+    this.fpsWindowStart = 0;
     this.outcomeAt = -1;
     this.debriefShown = false;
+    this.statsLogged = false;
     this.eventFocus = null;
     this.state = "playing";
     if(crown){this.sim.emit("phaseChange","Operation Abyssal Crown deployed. NEREUS has mission command.");this.view.rig.tacticalJumpTo({x:-900,y:-130,z:0});}
@@ -328,10 +332,25 @@ export class Game {
     }
     const doctrine = this.sim?.doctrine ?? this.menus.doctrine;
     this.menus.doctrine = doctrine;
-    this.startMission(doctrine);
+    this.campaignSortieId = null;
+    if (this.campaignOperation) {
+      this.startSimulation(doctrine,
+        this.campaignOperation === "canyon-passage",
+        this.campaignOperation === "silent-minefield",
+        this.campaignOperation === "echo-ridge",
+        this.campaignOperation === "silent-divide",
+        this.campaignOperation === "abyssal-crown"
+      );
+      if (this.sim && this.campaign) hydrateSimulation(this.campaign, this.sim);
+    } else {
+      this.startMission(doctrine);
+    }
   }
 
   private quitToMenu() {
+    this.campaignOperation=null;
+    this.campaignSortieId=null;
+    this.pendingCampaignOperation=null;
     this.teardownMission();
     this.state = "menu";
     this.menus.showStart();
